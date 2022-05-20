@@ -13,6 +13,7 @@ import (
 )
 
 func TestRetriever_Retrieve(t *testing.T) {
+	NumWorkersLimit = 100            // limit the amount of workers for max square size case on CI
 	rand.Seed(time.Now().UnixNano()) // otherwise, the quadrant sampling is deterministic in tests
 
 	ctx, cancel := context.WithCancel(context.Background())
