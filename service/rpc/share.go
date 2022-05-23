@@ -114,11 +114,10 @@ func (h *Handler) getShares(ctx context.Context, height uint64, nID namespace.ID
 }
 
 func dataFromShares(shares []share.Share) ([][]byte, error) {
-	delimitedShares := make([]share.Share, len(shares))
 	for i := range shares {
-		delimitedShares[i] = delimitedShare(shares[i])
+		insertDelimiter(shares[i])
 	}
-	messages, err := types.ParseMsgs(delimitedShares)
+	messages, err := types.ParseMsgs(shares)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +128,19 @@ func dataFromShares(shares []share.Share) ([][]byte, error) {
 	return data, nil
 }
 
-func delimitedShare(share share.Share) share.Share {
+func insertDelimiter(share share.Share) share.Share {
 	lenBuf := make([]byte, binary.MaxVarintLen64)
 	length := uint64(len(share))
 	n := binary.PutUvarint(lenBuf, length)
-	withDelim := make([]byte, len(share)+n)
-	copy(withDelim[:ipld.NamespaceSize], share[:ipld.NamespaceSize])
+
+	var withDelim []byte
+	if len(share)+n <= cap(share) {
+		withDelim = share[:cap(share)]
+	} else {
+		withDelim = make([]byte, len(share)+n)
+		copy(withDelim[:ipld.NamespaceSize], share[:ipld.NamespaceSize])
+	}
+
 	copy(withDelim[ipld.NamespaceSize:], lenBuf[0:n])
 	copy(withDelim[ipld.NamespaceSize+n:], share[ipld.NamespaceSize:])
 	return withDelim
