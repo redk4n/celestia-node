@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/tendermint/tendermint/types"
 
 	"github.com/celestiaorg/celestia-node/header"
+	"github.com/celestiaorg/celestia-node/ipld"
 	"github.com/celestiaorg/celestia-node/service/share"
 	"github.com/celestiaorg/nmt/namespace"
 )
@@ -112,7 +114,11 @@ func (h *Handler) getShares(ctx context.Context, height uint64, nID namespace.ID
 }
 
 func dataFromShares(shares []share.Share) ([][]byte, error) {
-	messages, err := types.ParseMsgs(shares)
+	delimitedShares := make([]share.Share, len(shares))
+	for i := range shares {
+		delimitedShares[i] = delimitedShare(shares[i])
+	}
+	messages, err := types.ParseMsgs(delimitedShares)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +127,17 @@ func dataFromShares(shares []share.Share) ([][]byte, error) {
 		data[i] = messages.MessagesList[i].Data
 	}
 	return data, nil
+}
+
+func delimitedShare(share share.Share) share.Share {
+	lenBuf := make([]byte, binary.MaxVarintLen64)
+	length := uint64(len(share))
+	n := binary.PutUvarint(lenBuf, length)
+	withDelim := make([]byte, len(share)+n)
+	copy(withDelim[:ipld.NamespaceSize], share[:ipld.NamespaceSize])
+	copy(withDelim[ipld.NamespaceSize:], lenBuf[0:n])
+	copy(withDelim[ipld.NamespaceSize+n:], share[ipld.NamespaceSize:])
+	return withDelim
 }
 
 func parseGetByNamespaceArgs(r *http.Request) (height uint64, nID namespace.ID, err error) {
